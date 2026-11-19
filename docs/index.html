@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TOKENLENS — LLM Token & API Cost Calculator + JSON-to-Compact Context Optimizer</title>
+  <meta name="description" content="100% browser-local LLM token estimator (EN/JP/CJK), lossless JSON-to-Compact Tabular context compressor (40-65% smaller payloads), and editable multi-model USD/JPY API cost matrix.">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell topbar__inner">
+      <div class="brand">
+        <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="29" height="29" rx="5" fill="#2546a8" />
+          <path d="M10.5 9.5H8V22.5H10.5M21.5 9.5H24V22.5H21.5" stroke="#ffffff" stroke-width="2" fill="none" stroke-linecap="square" />
+          <circle cx="16" cy="16" r="3.6" stroke="#c5d3f6" stroke-width="2" fill="none" />
+          <circle cx="16" cy="16" r="1.2" fill="#ffffff" />
+        </svg>
+        <div class="brand__text">
+          <span class="brand__title">TOKENLENS <span class="brand__ver">v1.0</span></span>
+          <span class="brand__sub" data-i18n="brandSub">LLM Token Counter · Lossless JSON Compact Optimizer · Editable API Cost Matrix</span>
+        </div>
+      </div>
+
+      <div class="topbar__controls">
+        <button type="button" class="chip-btn" data-sample="apiArray" data-i18n="sampleArray">Sample: API JSON Array</button>
+        <button type="button" class="chip-btn" data-sample="jpRag" data-i18n="sampleJp">Sample: JP/EN RAG Wrapper</button>
+        <button type="button" class="chip-btn" data-sample="markdown" data-i18n="sampleMd">Sample: Prompt Markdown</button>
+
+        <div class="lang-switch" role="group" aria-label="Language switch">
+          <button type="button" id="langEn" class="is-active">EN</button>
+          <button type="button" id="langJa">日本語</button>
+        </div>
+
+        <div class="trust-pill" title="Zero network calls. All payloads stay strictly in browser memory.">
+          <span class="trust-pill__dot" aria-hidden="true"></span>
+          <span data-i18n="trustPill">100% Browser-Local · 0 API Calls</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell workspace">
+    <div class="page-head">
+      <div>
+        <h1 data-i18n="pageTitle">LLM Token & API Cost Calculator + Context Optimizer</h1>
+        <p id="headlineSummary" class="page-head__sub"></p>
+      </div>
+    </div>
+
+    <!-- Unified 4-Cell KPI Strip -->
+    <section class="kpi-strip" aria-label="Token and Cost Summary">
+      <div class="kpi-cell">
+        <span class="kpi-cell__label" data-i18n="kpiRawLabel">Raw Payload Tokens (Est.)</span>
+        <strong id="kpiRawTokens" class="kpi-cell__value tabular">0</strong>
+        <span id="kpiRawMeta" class="kpi-cell__note">0 chars · 0 bytes</span>
+      </div>
+      <div class="kpi-cell kpi-cell--save">
+        <span class="kpi-cell__label" data-i18n="kpiOptLabel">Optimized Payload Tokens</span>
+        <strong id="kpiOptTokens" class="kpi-cell__value tabular">0</strong>
+        <span id="kpiOptMeta" class="kpi-cell__note">0% saved</span>
+      </div>
+      <div class="kpi-cell">
+        <span class="kpi-cell__label" id="kpiBaseModelLabel">Monthly Cost (Baseline Model)</span>
+        <strong id="kpiMonthlyRaw" class="kpi-cell__value tabular">$0.00</strong>
+        <span id="kpiMonthlyOpt" class="kpi-cell__note">Optimized: $0.00</span>
+      </div>
+      <div class="kpi-cell kpi-cell--save">
+        <span class="kpi-cell__label" data-i18n="kpiSavingsLabel">Est. Monthly Optimization Savings</span>
+        <strong id="kpiMonthlySavings" class="kpi-cell__value tabular">$0.00</strong>
+        <span id="kpiMonthlySavingsJpy" class="kpi-cell__note">¥0 / month</span>
+      </div>
+    </section>
+
+    <!-- Context Optimizer Workbench -->
+    <section class="panel" aria-labelledby="optHeading">
+      <div class="panel__head">
+        <h2 id="optHeading" class="panel__title" data-i18n="optTitle">Context Payload Optimizer (JSON → Compact Tabular / Minify / Markdown Trim)</h2>
+        <div class="optimizer-toolbar">
+          <select id="optMode" class="select-sm" aria-label="Optimization mode">
+            <option value="auto" selected>Auto (Recommended)</option>
+            <option value="compact-tabular">Compact Tabular (@schema)</option>
+            <option value="minify-json">Minify JSON</option>
+            <option value="trim-markdown">Trim Markdown / Whitespace</option>
+          </select>
+          <label class="check-inline">
+            <input id="stripEmpty" type="checkbox">
+            <span data-i18n="stripEmptyLabel">Prune null / empty fields</span>
+          </label>
+          <button type="button" id="copyOptBtn" class="btn btn--primary" data-i18n="copyOptBtn">Copy Optimized</button>
+        </div>
+      </div>
+      <div class="panel__body">
+        <div class="editor-grid">
+          <div class="editor-pane">
+            <div class="editor-pane__head">
+              <span data-i18n="rawPaneLabel">Input Prompt / JSON Payload</span>
+              <span id="scriptProfileBadge" class="badge badge--muted">ascii-dominant</span>
+            </div>
+            <textarea id="rawInput" class="code-area" spellcheck="false" aria-label="Raw input text or JSON"></textarea>
+            <div id="scriptBreakdownStrip" class="script-strip"></div>
+          </div>
+
+          <div class="editor-pane">
+            <div class="editor-pane__head">
+              <span data-i18n="optPaneLabel">Optimized LLM-Ready Output</span>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <span id="strategyBadge" class="badge badge--accent">compact-tabular</span>
+                <span id="roundTripBadge" class="badge badge--save">Round-Trip 100% Lossless</span>
+              </div>
+            </div>
+            <textarea id="optOutput" class="code-area code-area--out" readonly spellcheck="false" aria-label="Optimized output"></textarea>
+            <div id="optNoteStrip" class="script-strip"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Multi-Model Editable Pricing & Monthly Cost Matrix -->
+    <section class="panel" aria-labelledby="matrixHeading">
+      <div class="panel__head">
+        <h2 id="matrixHeading" class="panel__title" data-i18n="matrixTitle">Multi-Model API Cost Matrix (Editable $/1M Rates · USD & JPY)</h2>
+        <button type="button" id="resetPricesBtn" class="chip-btn" data-i18n="resetPrices">Reset Reference Rates</button>
+      </div>
+      <div class="panel__body">
+        <div class="cost-params">
+          <div class="param-field">
+            <label for="baselineModel" data-i18n="paramBaseline">Baseline Model</label>
+            <select id="baselineModel"></select>
+          </div>
+          <div class="param-field">
+            <label for="outputTokens" data-i18n="paramOutTok">Output Tokens / Call</label>
+            <input id="outputTokens" type="number" min="0" max="200000" step="50" value="500">
+          </div>
+          <div class="param-field">
+            <label for="cachedRatio" data-i18n="paramCache">Cached Input (%)</label>
+            <input id="cachedRatio" type="number" min="0" max="95" step="5" value="0">
+          </div>
+          <div class="param-field">
+            <label for="callsPerDay" data-i18n="paramCalls">API Calls / Day</label>
+            <input id="callsPerDay" type="number" min="1" max="10000000" step="100" value="2000">
+          </div>
+          <div class="param-field">
+            <label for="daysPerMonth" data-i18n="paramDays">Days / Month</label>
+            <input id="daysPerMonth" type="number" min="1" max="31" step="1" value="30">
+          </div>
+          <div class="param-field">
+            <label for="usdJpyRate" data-i18n="paramFx">USD / JPY FX</label>
+            <input id="usdJpyRate" type="number" min="50" max="300" step="1" value="155">
+          </div>
+        </div>
+
+        <div id="costChart" class="chart-box" role="img" aria-label="Monthly API spend comparison bar chart"></div>
+
+        <div class="table-wrap">
+          <table class="cost-table">
+            <thead>
+              <tr>
+                <th data-i18n="thModel">Model</th>
+                <th data-i18n="thTier">Tier</th>
+                <th class="num" data-i18n="thInPrice">Input ($/1M)</th>
+                <th class="num" data-i18n="thCachePrice">Cached ($/1M)</th>
+                <th class="num" data-i18n="thOutPrice">Output ($/1M)</th>
+                <th class="num" data-i18n="thPerCall">$/Call</th>
+                <th class="num" data-i18n="thMoRaw">Monthly Raw ($)</th>
+                <th class="num" data-i18n="thMoOpt">Optimized ($)</th>
+                <th class="num" data-i18n="thMoJpy">Optimized (¥)</th>
+                <th class="num" data-i18n="thSave">Monthly Saved</th>
+              </tr>
+            </thead>
+            <tbody id="costTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Subtle Developer Ecosystem Footer -->
+    <section class="cta-strip" aria-label="Related Local-First AI & Data Tools">
+      <div>
+        <h2 data-i18n="footerTitle">Need local PII redaction before sending prompts, or clean structured feeds?</h2>
+        <p data-i18n="footerSub">Explore our companion zero-backend developer utilities, zero-API-key MCP server, and pay-per-event Apify extractors.</p>
+      </div>
+      <div class="cta-links">
+        <a class="cta-link" href="https://pecopeko.github.io/kurogate/" target="_blank" rel="noopener">KUROGATE v1.1 (PII Masking Ext)</a>
+        <a class="cta-link" href="https://github.com/pecopeko/mcp-public-intel" target="_blank" rel="noopener">mcp-public-intel (Zero-Key MCP)</a>
+        <a class="cta-link" href="https://github.com/pecopeko/apify-ppe-actors" target="_blank" rel="noopener">Apify PPE Actors</a>
+      </div>
+    </section>
+
+    <p class="footnote" data-i18n="footnote">
+      Note: Token counts use a deterministic multi-script BPE-calibrated heuristic (distinguishing ASCII prose/code, 3-digit numeric merges, Japanese Kana, CJK Han, and JSON punctuation) with zero external WASM downloads. Model $/1M pricing cells are editable reference defaults — click any cell to match your exact provider contract or tier.
+    </p>
+  </main>
+
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
